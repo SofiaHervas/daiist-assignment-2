@@ -39,10 +39,11 @@ applications in AEMO's cost study, and agricultural inputs have risen by more th
 70% since. It also uses up the EU copper allowance (max. 28 kg Cu/ha over 7 years),
 which a grower may need in a wet year.
 
-**Asymmetry.** Missing peacock spot costs about 4 times more than an unnecessary
-treatment. So it pays to treat whenever P(peacock spot) > 110 / (110 + 400) ≈ 0.22,
-well below 0.5. The ratio depends on the olive oil price: if it doubled, a missed
-case would cost ~€800/ha and the threshold would drop further.
+**Asymmetry.** Treating costs €110 whether or not the parcel is infected; not
+treating costs €400 only if it is. So treating pays off when
+P(peacock spot) × 400 > 110, i.e. P > 0.275, well below 0.5. This break-even moves
+with the olive oil price: at double the price (a missed case costs ~€800) it drops
+to 0.14; at half the price (~€200) it rises to 0.55.
 
 **How often the positive case occurs.** I assume about 25% of the parcels the
 technician visits actually need a copper treatment. Visits are not random: the
