@@ -112,17 +112,73 @@ lesions are only a few pixels at this resolution.
 
 ## Finetuning and baselines
 
-*Which model and task (detection or classification) and why. A results table on
-the same test split: your finetuned model, the pretrained COCO model zero-shot,
-and a trivial baseline. What changed, and whether the gap is as large as you
-expected.*
+I treat this as image classification and finetune `yolo11n-cls` from its ImageNet
+checkpoint. Each image is one leaf and the decision is about that leaf, so a
+classifier fits. The nano model takes about 3 ms per image, which is light enough
+to run on a phone. I trained on Google Colab (Tesla T4) at 224×224 with batch 64,
+up to 30 epochs with early stopping (patience 10) and seed 42. The best validation
+epoch was 20, and training took about 19 minutes. Train loss kept falling while
+validation loss flattened after epoch 20, a mild sign of overfitting, so I keep
+`best.pt` rather than `last.pt`.
+
+| Model (same 323 test images) | Accuracy | Peacock spot recall | Peacock spot precision |
+|---|---|---|---|
+| Finetuned yolo11n-cls | **0.975** | 0.973 | 0.993 |
+| Pretrained zero-shot (val mapping) | 0.409 | 0.450 | 0.493 |
+| Majority class (always peacock spot) | 0.461 | 1.000 | 0.461 |
+
+The pretrained ImageNet model labels olive leaves as "cucumber", "lacewing" or
+"quill", in similar proportions for all three classes. It recognises something
+green and elongated but has no notion of lesions. Since its labels never match
+ours, I map each ImageNet label to the olive class it most often corresponds to on
+the validation split. Even with that help it scores 40.9%, below the trivial
+baseline, so without finetuning the model is of no use for this decision.
+
+Always predicting peacock spot gives perfect recall because it means treating
+every parcel, and it pays for an unnecessary treatment on more than half of them.
+Comparing it with the model on accuracy or recall says little; the cost section
+compares them in euros.
+
+The best epoch scored 95.6% on validation and the model scores 97.5% on test. With
+158 validation images each error moves accuracy by 0.6 points, so I read the gap
+as noise.
 
 ## Per-class evaluation and failure modes
 
-*Per-class AP50, or per-class precision/recall and the confusion matrix.
-Which class carries the headline number, which one is dragging, and what the
-model actually confuses with what. Show where it breaks, not just that it
-works.*
+| Class | Precision | Recall | Test images |
+|---|---|---|---|
+| Healthy | 0.955 | 0.988 | 86 |
+| aculus_olearius | 0.966 | 0.966 | 88 |
+| olive_peacock_spot | 0.993 | 0.973 | 149 |
+
+In the confusion matrix (rows are true classes, columns predicted), Healthy is
+85/1/0, Aculus 2/85/1 and peacock spot 2/2/145. Peacock spot is the positive class
+and carries the headline number, as the largest and most accurate class. With 149
+images its 97.3% recall has roughly ±2.6 points of uncertainty.
+
+Only 5 of the 8 errors cost money. Mixing up Healthy and Aculus does not change the
+decision, because neither gets copper. The errors that matter are 4 missed peacock
+spots (false negatives) and 1 Aculus leaf flagged as peacock spot (a false
+positive).
+
+Two of the missed peacock spots were near misses, with P(peacock spot) of 0.43 and
+0.46. One is a thin leaf with a single small, faint lesion near the tip; the other
+is a deformed leaf with a hole, on a vignetted background. A peacock spot threshold
+below about 0.43 would catch both, which is why I move the threshold away from the
+default of picking the most probable class. The other two were confident misses
+(0.03 and 0.01): an underexposed, almost black leaf where the lesions are barely
+visible, and a leaf with an unusual bluish tint on a wooden table. No reasonable
+threshold recovers these; photographing on the white card in decent light is the
+mitigation. The false positive is an Aculus leaf with a whitish patch that looks
+like a lesion. The model gave it P = 0.85, so a small change in threshold won't
+remove it.
+
+I also checked whether the model relies on the background. The peacock spot leaf on
+the wooden table was predicted as Aculus. If the model had learned "unusual
+background means peacock spot", this is the image it would most easily flag. That,
+and the zero-shot model giving the same labels to all three classes, suggest the
+model is using the leaf. I can't rule out some use of the background with this
+test set.
 
 ## Cost matrix and operating point
 
