@@ -183,18 +183,94 @@ test set.
 
 ## Cost matrix and operating point
 
-*Your euro cost for each kind of error and where each figure came from. The
-base rate you assumed. The cost-against-threshold sweep, and the operating
-point you chose. State the assumption that would most change your answer if it
-were wrong.*
+Costs are per hectare, and I treat one case as one parcel of about 1 ha. A true
+positive costs €110 (the copper treatment), a false positive €110 (a wasted
+treatment), a false negative €400 (about 10% of a €4,000/ha harvest) and a true
+negative €0. The sources are in the business section. I assume a base rate of 25%,
+because the technician is mostly called to parcels where the grower already
+suspects a problem. The test set is 46% peacock spot, so I take only the true and
+false positive rates from it at each threshold and compute the expected cost per
+1,000 parcels at 25%.
+
+Treating pays off above P = 110/400 = 0.275. The model was trained on 45% positives,
+so its probabilities are not calibrated for a 25% world, and I swept the threshold
+from 0 to 1 in steps of 0.01 instead of using 0.275 directly.
+
+![Cost against threshold](results/cost_vs_threshold.png)
+
+The minimum is flat between 0.35 and 0.43, and I chose the middle, 0.39. At that
+threshold the model catches 147 of 149 peacock spots with 1 false positive. The two
+extra catches compared with the default rule are the near misses from the failure
+analysis (P = 0.43 and 0.46). The optimum sits above 0.275, which fits a model that
+overstates peacock spot after seeing it more often in training.
+
+| Policy (base rate 25%) | Cost per 1,000 parcels |
+|---|---|
+| Do nothing | €100,000 |
+| Treat every parcel | €110,000 |
+| Model, most probable class | €29,920 |
+| Model, threshold 0.39 | €28,947 |
+| Perfect classifier | €27,500 |
+
+Treating every parcel costs more than doing nothing, since 25% is below the 27.5%
+break-even. The model saves about €71,000 per 1,000 parcels compared with doing
+nothing and is €1,447 away from a perfect classifier. Between 0.1 and 0.9 the curve
+is almost flat, because the model gives most images a probability near 0 or 1, so
+the exact threshold matters little. Where the minimum falls depends on only two
+test images, and another test set could move it.
+
+I repeated the sweep for base rates from 5% to 60% and a missed case costing €200,
+€400 or €800 (half, current and double the oil price). At the current price the
+best threshold stays at 0.39 for any base rate between 10% and 60%. It rises to 0.88
+at a 5% base rate unless oil doubles, and at 10% with oil at half price. It drops to
+0.01, which means treating almost everything, at a 60% base rate with oil at double
+the price. The base rate is the assumption that would most change my answer: if 5%
+or fewer of visited parcels needed treatment, I should raise the threshold to
+about 0.88. In every scenario the model costs less than doing nothing and less than
+treating everything.
 
 ## What a person still has to check
 
-*Your two thresholds, and what share of cases they send to a person. How many
-that is per day, how long one takes to check, and how many people that needs.
-Is that realistic? Then your design priced against the three alternatives:
-doing nothing, having a person check everything, and letting the model decide
-on its own.*
+The model now has three outcomes, set by two thresholds on P(peacock spot). Below
+0.005 the parcel is not treated, at 0.86 or above it is treated, and anything in
+between goes to the cooperative's agronomist as a photo.
+
+I assume a review takes 3 minutes and that the agronomist decides correctly. I
+found no published salary for cooperative agronomists, so I assume about €35,000
+gross a year plus 30% employer social security over roughly 1,700 hours. That is
+about €30/h, or €1.50 per review. Even at twice that, a review is cheap next to
+€110 or €400. In season, 4 technicians visit about 100 parcels a day, and the
+agronomist can spend at most one hour a day on reviews, which caps them at 20
+photos (20% of cases).
+
+I searched every pair of thresholds for the lowest expected cost within that cap.
+The sweep chose 0.01 for the lower threshold, just below the lowest peacock spot
+score in the test set (0.011), so that value is tuned to two test images. I halved
+it to 0.005 to leave a margin for leaves the model has not seen. This costs €39
+more per 1,000 parcels and keeps the load within capacity.
+
+| Policy (base rate 25%) | Cost per 1,000 parcels | Photos to review per day | Agronomist time per day |
+|---|---|---|---|
+| Do nothing | €100,000 | 0 | 0 |
+| Agronomist checks every photo | €29,000 | 100 | 5 h |
+| Model alone (threshold 0.39) | €28,947 | 0 | 0 |
+| Model + review (0.005 to 0.86) | €27,701 | ~13 | ~40 min |
+
+The band sends 13.4% of cases to review, about 13 photos and 40 minutes a day,
+which fits in the hour available. Volume could grow to about 150 parcels a day
+before the agronomist runs out of time. Checking every photo would take 5 hours a
+day, about five eighths of a full-time post, and would still cost more than the
+model alone: €1.50 on each of 1,000 photos comes to more than the cost of the
+model's few errors. The model plus review costs €200 more than a perfect
+classifier.
+
+![Review capacity](results/review_capacity.png)
+
+Extra review capacity stops paying off at about 11% of cases. On the test set the
+band misses no peacock spots, but that depends on two low-scoring leaves (P = 0.011
+and 0.032). With the lower threshold at 0.05 it would miss about 3.4 per 1,000
+parcels and cost €28,553. A new sample of leaves is likely to contain peacock spots
+that score lower still, so the real miss rate will be above zero.
 
 ## Limitations & next steps
 
