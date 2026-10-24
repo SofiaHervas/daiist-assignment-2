@@ -4,17 +4,16 @@
 defend any of this without your code in front of you. Write only what you
 can actually explain.*
 
-- **Name**:
-- **Student ID**:
-- **Email**:
-- **Group**: [BBADBA 5A | BBADBA 5B | PPLEDBA 5A | BDBA 3A]
+- **Name**: Sofia Hervas Sanchez
+- **Student ID**:18936
+- **Email**:shervas.ieu2022@student.ie.edu
+- **Group**: BBADBA 5B 
 
 ## Business problem, and the cost of being wrong
 
-**Decision.** An agricultural cooperative in Andalusia employs a field technician
-who visits members' olive groves (olive oil production) in autumn and spring, when
-olive peacock spot (*repilo*) spreads with humidity. At each parcel the technician
-picks a sample of leaves, photographs one on a white card with a phone, and must
+**Decision.** An agricultural cooperative in Andalucia employs a field technician
+who visits members' olive groves in autumn and spring, when olive peacock spot ( also known as repilo) spreads with humidity. At each parcel the technician
+picks a sample of leaves, photographs one with a white card behind it with the phone, and must
 decide: **apply a copper treatment to the parcel, or not**. The model classifies
 the leaf as healthy, Aculus olearius or peacock spot; the decision depends on the
 probability of peacock spot. Unclear cases are sent to the cooperative's
@@ -29,7 +28,7 @@ technician only logs it for monitoring.
 the trees, which reduces this harvest and weakens the next one. Historical average
 losses in Spain are around 6% of production, and the "repilos" together cause more
 than 10%, with catastrophic years locally. A traditional irrigated grove produces
-about 6,000 kg of olives/ha at a 21% oil yield (≈1,260 kg oil/ha), worth ≈€4,000/ha
+about 6,000 kg of olives per ha at a 21% oil yield (≈1,260 kg oil/ha), worth ≈€4,000/ha
 at the current origin price of ≈€3.20/kg (Poolred, October 2026). A 10% loss is
 ≈€400/ha.
 
@@ -76,8 +75,6 @@ varieties not in the dataset) is discussed under limitations.
 
 ## What the dataset's composition implies
 
-## What the dataset's composition implies
-
 | Class | Train (originals) | Train (files on disk) | Val | Test |
 |---|---|---|---|---|
 | Healthy | 756 | 2,268 | 49 | 86 |
@@ -86,8 +83,7 @@ varieties not in the dataset) is discussed under limitations.
 | **Total** | **2,744** | **8,232** | **158** | **323** |
 
 **The headline split is misleading.** Roboflow reports 94/2/4, but the train split
-contains 3 augmented copies of every photo. Counting distinct originals (the part of
-the filename before `.rf.`), the real split is 85/5/10 over 3,225 photos. I checked
+contains 3 augmented copies of every photo. Counting distinct originals, the real split is 85/5/10 over 3,225 photos. I checked
 that no original appears in more than one split: train/val, train/test and val/test
 overlaps are all 0, so there is no leakage. All images are 224×224 (stretched by
 Roboflow); one leaf fills a large part of the frame, but early peacock spot
@@ -274,9 +270,58 @@ that score lower still, so the real miss rate will be above zero.
 
 ## Limitations & next steps
 
-*Real limitations you found, and concretely how you'd address each one with
-more time or data. Not generic hedging.*
+The test images are lab-style photos of single leaves, mostly on white paper.
+The white-card protocol brings field photos closer to them, but a different phone,
+light or olive variety could still lower accuracy. Before using the model I would
+have the technicians photograph about 200 leaves with the protocol, have the
+agronomist label them, and re-measure recall and the cost curve on those.
+
+Backgrounds and file names differ by class, which suggests separate photo
+sessions. Two checks point to the model using the leaf (the wooden-table peacock
+spot was not flagged, and the zero-shot model gave all classes the same labels),
+but neither proves it. Saliency maps such as Grad-CAM, or testing on leaves cut
+out and pasted onto one shared background, would show what the model looks at.
+
+I chose both thresholds on the same 323 test images I report them on, so the
+costs are optimistic. The lower threshold in particular sits next to two test
+leaves. With more data I would set thresholds on a separate calibration split, or
+use cross-validation, and keep the test set only for the final number.
+
+With 149 peacock spot images, recall has an uncertainty of about ±2.6 points, and
+the position of the cost minimum rests on two images. Bootstrap confidence
+intervals on the cost curve would show how much the chosen threshold could move.
+
+The model's probabilities reflect the 45% peacock spot share it was trained on,
+not the 25% I assume in the field. I worked around this by sweeping thresholds;
+recalibrating the probabilities on validation data with a prior-shift correction
+would make the 0.275 break-even usable directly.
+
+The cost model is simple. It uses one loss figure (10% of the harvest), treats a
+parcel as 1 ha, decides from a single leaf, and assumes the agronomist never makes
+a mistake. Real sampling uses several leaves per parcel, so the next version would
+combine the predictions for 5 to 10 leaves into one parcel-level score. The review
+cost comes from an assumed salary, not a published agreement.
+
+The model only knows three classes. A leaf with another disease would be forced
+into one of them. Adding an "other" class, or flagging low-confidence images for
+review, would handle leaves outside the training data.
+
+Retraining with `main.py train` may give slightly different numbers from the
+committed weights, because GPU training is not fully deterministic. All figures in
+this report come from the committed `weights/olive_cls_best.pt` and `results/`.
 
 ## Generative AI use disclosure
 
-*Per the syllabus AI Policy: what you used and how, or "no AI content used."*
+I used Claude  throughout the assignment as a tutor and assistant. It
+proposed candidate topics, from which I chose olive peacock spot; searched for and
+summarised the cost sources (AEMO cost studies, Ministry of Agriculture articles,
+Poolred prices); wrote most of the code in `train.ipynb` and `app.ipynb`, which I
+ran, checked and debugged step by step.
+
+The decisions are mine and I can explain each of them: the cooperative scenario,
+peacock spot as the only positive class after reading about Aculus, the 25% base
+rate, keeping best.pt, halving the lower review threshold for a safety margin, and
+the capacity warning in the dashboard. I also caught several problems while
+running the pipeline (the unsaved notebook that skipped training, the stray
+yolo26n.pt in weights/, the validation folder name) and checked every number in
+this report against the notebook output.
